@@ -32,7 +32,7 @@ def samplesearch(stream, s_original, s_start=0,
                                    byteorder="little", signed=True))
   
   compare = [(s_start, samplesimilarity(sample_o, sample_n))]
-  percent = 0.05
+  percent = 10
   searchlen = s_length * width
   max = min(stream.getnframes() - s_start, s_range + searchlen) - searchlen
   for i in range(1, max):
@@ -40,18 +40,20 @@ def samplesearch(stream, s_original, s_start=0,
     sample_n.append(int.from_bytes(stream.readframes(width)[:sampwidth],
                                    byteorder="little", signed=True))
     compare.append((i + s_start, samplesimilarity(sample_o, sample_n)))
-    if (i / max) > percent:
-      print("{0}% done".format(percent))
-      percent += .05
+    if (i / max * 100) > percent:
+      print(f"{percent}% done")
+      percent += 10
   
   compare.sort(key=itemgetter(1))
   return compare[::-1]
 
 def start(args, flags):
 
+  # Input file exists
+
   file = None
   try:  
-    file = Path(sys.argv[0])
+    file = Path(args[0])
   except IndexError:
     print("Too few arguments supplied")
     exit(1)
@@ -60,13 +62,20 @@ def start(args, flags):
     print("File not found")
     exit(1)
     
-  if file.suffix() != ".wav":
+  # Try to convert to wav
+    
+  if file.suffix != ".wav":
     new_file = file.with_suffix('.wav')
-    output = subprocess.run(['ffmpeg.exe', '-i', str(file), str(new_file)])
-    if output.returncode != 0:
-      printf("Invalid file: unable to convert to .wav")
-      exit(1)
+    if new_file.is_file():
+      print("Converted file found in path, using instead")
+    else:
+      output = subprocess.run(['ffmpeg.exe', '-i', str(file), str(new_file)])
+      if output.returncode != 0:
+        print("Invalid file: unable to convert to .wav")
+        exit(1)
     file = new_file
+    
+  # Get arguments
     
   c_args = [0, 0, 0]
   try:
@@ -82,7 +91,7 @@ def start(args, flags):
   except ValueError:
     print("Non-file arguments must be integers (use -s to specify seconds)")
     exit(1)
-  
+
   results_len = 10
   if len(args) > 4:
     try:
@@ -90,13 +99,13 @@ def start(args, flags):
     except ValueError:
       print("Non-file arguments must be integers")
       exit(1)
-    
+      
   with wave.open(str(file), "rb") as stream:
     if "s" in flags:
       for i in range(3):
         c_args[i] = int(c_args[i] * stream.getframerate())
       
-    top = samplesearch(stream, *args)
+    top = samplesearch(stream, *c_args)
     print("Rankings for samples that loop at sample #{0}".format(c_args[0]))
     for i in range(results_len):
       print(top[i])
